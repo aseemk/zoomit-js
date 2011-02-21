@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zoomit.js Sample App</title>
+    <style>
+        body {
+            font-family: Verdana;
+            font-size: 14px;
+            width: 750px;
+            margin: auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        div {
+            margin: 1em;
+        }
+        #input {
+            width: 20em;
+            margin-right: 0.5em;
+        }
+        #submit {
+            padding: 2px 2em;
+        }
+        #output {
+            display: block;
+            width: 100%;
+            height: 25em;
+            margin-top: 0.5em;
+        }
+    </style>
+</head>
+<body>
+    <form id="form">
+        <h1>Zoomit.js Sample App</h1>
+        <div>
+            <label for="input">ID or URL:</label>
+            <input id="input" type="text" value="" />
+            <input id="submit" type="submit" value="Query" />
+        </div>
+        <div>
+            <label for="output">Output:</label>
+            <textarea id="output"></textarea>
+        </div>
+    </form>
+    <script src="zoomit.js"></script>
+    <script>
+        var input = document.getElementById("input");
+        var output = document.getElementById("output");
+        
+        function clearOutput() {
+            output.innerHTML = "";
+        }
+        
+        function writeOutput(msg) {
+            output.innerHTML += (msg || "") + "\n";
+        }
+        
+        document.getElementById("form").onsubmit = function () {
+            clearOutput();
+            writeOutput("Retrieving...");
+            
+            Zoomit.getContentInfo(input.value, onApiResponse);
+            
+            return false;
+        };
+        
+        function onApiResponse(resp) {
+            clearOutput();
+            
+            if (!resp.content) {
+                writeOutput("Error retrieving content info:");
+                writeOutput(resp.error);
+                
+                return;
+            }
+            
+            writeOutput("Successfully retrieved content info!");
+            writeOutput();
+            
+            var content = resp.content;
+            
+            writeOutput("ID = " + content.id);
+            writeOutput("URL = " + content.url);
+            writeOutput([
+                "Status = ",
+                content.ready ? "Ready" :
+                    content.failed ? "Failed" : "Processing",
+                " (Progress = ",
+                Math.round(100 * content.progress),
+                "%)"
+            ].join(''));
+            
+            writeOutput();
+            writeOutput("Share URL = " + content.shareUrl);
+            writeOutput("Embed HTML = " + escapeHtml(content.embedHtml));
+            
+            writeOutput();
+            writeOutput("Title = " + (content.title || ""));
+            writeOutput("Attribution Text = " + (content.attributionText || ""));
+            writeOutput("Attribution URL = " + (content.attributionUrl || ""));
+            
+            var dzi = content.dzi;
+            
+            if (!dzi) {
+                return;
+            }
+            
+            writeOutput();
+            writeOutput("DZI URL = " + dzi.url);
+            writeOutput("DZI Resolution = " + dzi.width + " x " + dzi.height);
+            writeOutput("DZI Format = " + dzi.tileFormat);
+        }
+        
+        function escapeHtml(str) {
+            var temp = document.createElement("p");
+            temp.appendChild(document.createTextNode(str));
+            return temp.innerHTML;
+        }
+    </script>
+</body>
+</html>
