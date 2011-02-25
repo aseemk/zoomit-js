@@ -12,111 +12,157 @@
         h1 {
             text-align: center;
         }
-        div {
-            margin: 1em;
+        label {
+            margin: 1em 0;
         }
-        #input {
-            width: 20em;
-            margin-right: 0.5em;
-        }
-        #submit {
+        input.button {
             padding: 2px 2em;
         }
-        #output {
+        #id-container {
+            float: left;
+        }
+        #id-input {
+            width: 4em;
+        }
+        #url-container {
+            float: right;
+        }
+        #url-input {
+            width: 45em;
+        }
+        #result-container {
+            display: block;
+            clear: both;
+            width: 100%;
+        }
+        #result-output {
             display: block;
             width: 100%;
             height: 25em;
-            margin-top: 0.5em;
+            margin: 1em 0;
         }
     </style>
 </head>
 <body>
     <form id="form">
         <h1>Zoomit.js Sample App</h1>
-        <div>
-            <label for="input">ID or URL:</label>
-            <input id="input" type="text" value="" />
-            <input id="submit" type="submit" value="Query" />
-        </div>
-        <div>
-            <label for="output">Output:</label>
-            <textarea id="output"></textarea>
-        </div>
+        <label id="id-container">
+            <span>ID:</span>
+            <input class="text" id="id-input" value="" />
+            <input class="button" id="id-submit" type="submit" value="Query" />
+        </label>
+        <label id="url-container">
+            <span>URL:</span>
+            <input class="text" id="url-input" value="" />
+            <input class="button" id="url-submit" type="submit" value="Query" />
+        </label>
+        <label id="result-container">
+            <span>Result:</span>
+            <textarea id="result-output"></textarea>
+        </label>
     </form>
     <script src="zoomit.js"></script>
     <script>
-        var input = document.getElementById("input");
-        var output = document.getElementById("output");
-        
-        function clearOutput() {
-            output.innerHTML = "";
-        }
-        
-        function writeOutput(msg) {
-            output.innerHTML += (msg || "") + "\n";
-        }
-        
-        document.getElementById("form").onsubmit = function () {
-            clearOutput();
-            writeOutput("Retrieving...");
-            
-            Zoomit.getContentInfo(input.value, onApiResponse);
-            
-            return false;
-        };
-        
-        function onApiResponse(resp) {
-            clearOutput();
-            
-            if (!resp.content) {
-                writeOutput("Error retrieving content info:");
-                writeOutput(resp.error);
-                
-                return;
-            }
-            
-            writeOutput("Successfully retrieved content info!");
-            writeOutput();
-            
-            var content = resp.content;
-            
-            writeOutput("ID = " + content.id);
-            writeOutput("URL = " + content.url);
-            writeOutput([
-                "Status = ",
-                content.ready ? "Ready" :
-                    content.failed ? "Failed" : "Processing",
-                " (Progress = ",
-                Math.round(100 * content.progress),
-                "%)"
-            ].join(''));
-            
-            writeOutput();
-            writeOutput("Share URL = " + content.shareUrl);
-            writeOutput("Embed HTML = " + escapeHtml(content.embedHtml));
-            
-            writeOutput();
-            writeOutput("Title = " + (content.title || ""));
-            writeOutput("Attribution Text = " + (content.attributionText || ""));
-            writeOutput("Attribution URL = " + (content.attributionUrl || ""));
-            
-            var dzi = content.dzi;
-            
-            if (!dzi) {
-                return;
-            }
-            
-            writeOutput();
-            writeOutput("DZI URL = " + dzi.url);
-            writeOutput("DZI Resolution = " + dzi.width + " x " + dzi.height);
-            writeOutput("DZI Format = " + dzi.tileFormat);
-        }
+        var idInput = document.getElementById("id-input"),
+            urlInput = document.getElementById("url-input"),
+            output = document.getElementById("result-output");
         
         function escapeHtml(str) {
             var temp = document.createElement("p");
             temp.appendChild(document.createTextNode(str));
             return temp.innerHTML;
         }
+        
+        function clearOutput() {
+            output.innerHTML = "";
+        }
+        
+        function writeOutput(msg) {
+            output.innerHTML += escapeHtml(msg || "") + "\n";
+        }
+        
+        function onRequestError(error, opts, resp) {
+            writeOutput("There was an error making the request!");
+            writeOutput();
+            writeOutput(error);
+        }
+        
+        function writeContent(content) {
+            writeOutput();
+            writeOutput("ID = " + content.id);
+            writeOutput("URL = " + content.url);
+            writeOutput("Progress = " + Math.round(100 * content.progress) + "%");
+        
+            writeOutput();
+            writeOutput("Share URL = " + content.shareUrl);
+            writeOutput("Embed HTML = " + content.embedHtml);
+        
+            writeOutput();
+            writeOutput("Title = " + (content.title || ""));
+            writeOutput("Attribution Text = " + (content.attributionText || ""));
+            writeOutput("Attribution URL = " + (content.attributionUrl || ""));
+        }
+        
+        function writeDzi(dzi) {
+            writeOutput();
+            writeOutput("DZI URL = " + dzi.url);
+            writeOutput("DZI Resolution = " + dzi.width + " x " + dzi.height);
+            writeOutput("DZI Format = " + dzi.tileFormat);
+        }
+        
+        function onContentReady(content, opts, resp) {
+            writeOutput("The content is ready!");
+            writeContent(content);
+            writeDzi(content.dzi);      // this should exist if ready
+        }
+        
+        function onContentFailed(content, opts, resp) {
+            writeOutput("The content failed.");
+            writeContent(content);
+        }
+        
+        function onContentProcessing(content, opts, resp) {
+            writeOutput("The content is processing...");
+            writeContent(content);
+        }
+        
+        function makeRequest(id, url) {
+            // only one of id/url should be specified
+            Zoomit.getContentInfo({
+                id: id,
+                url: url,
+                error: onRequestError,
+                ready: onContentReady,
+                failed: onContentFailed,
+                processing: onContentProcessing
+            });
+        }
+        
+        document.getElementById("id-submit").onclick = function () {
+            var id = idInput.value;
+            
+            clearOutput();
+            writeOutput("Retrieving content info for ID " + id + " ...");
+            
+            makeRequest(id, null);
+            
+            return false;
+        };
+
+        document.getElementById("url-submit").onclick = function () {
+            var url = urlInput.value;
+            
+            clearOutput();
+            writeOutput("Retrieving content info for " + url + " ...");
+            
+            makeRequest(null, url);
+
+            return false;
+        };
+
+        document.getElementById("form").onsubmit = function () {
+            return false;
+        };
     </script>
 </body>
 </html>

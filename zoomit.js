@@ -1,23 +1,21 @@
 // zoomit.js
-// A basic JS wrapper library for the Zoom.it web API <http://api.zoom.it/>
-// that doesn't require jQuery or any other JavaScript library.
-// 
-// Author: Aseem Kishore <http://github.com/aseemk>
-// License: MIT (see license.txt for full text)
+// A JavaScript wrapper library for the Zoom.it API <http://api.zoom.it/>.
+//
+// Copyright (c) 2011 Aseem Kishore <https://github.com/aseemk>
+// MIT License (http://www.opensource.org/licenses/mit-license.php)
+//
+// Features:
+// - doesn't require jQuery or any other JS library
+//
+// TODO:
+// - support streamlined DZI endpoint (/v1/dzi)
+// - add convenience wrappers for thumbnail URLs (zoomit://thumbnail/?url=)
+// - support batch API: combine multiple requests into one (POST via XHR/XDR)
+// - differentiate client vs. server errors? (e.g. bad req vs. site down)
 
 (function (window, document) {
     
     var Zoomit = window.Zoomit = {};
-    
-    // CONSTANTS
-    
-    var HEAD = document.getElementsByTagName("head")[0],
-        
-        ARG_URL = "url",
-        ARG_CALLBACK = "callback",
-        
-        // Zoom.it IDs are alphanumeric, case-sensitive
-        ID_REGEX = /^[0-9a-zA-Z]+$/;
     
     // CONFIGURATION
     
@@ -35,7 +33,7 @@
         var script = document.createElement("script");
         
         script.src = src;
-        HEAD.appendChild(script);
+        (document.body || document.documentElement).appendChild(script);
         
         return script;
     }
@@ -61,11 +59,9 @@
     function makeApiUrlById(id, callbackName) {
         return [
             Zoomit.apiPath,
-            "v1/content/",
+            'v1/content/',
             id,
-            '?',
-            ARG_CALLBACK,
-            '=',
+            '?callback=',
             encodeURIComponent(callbackName)
         ].join('');
     }
@@ -73,37 +69,68 @@
     function makeApiUrlByUrl(url, callbackName) {
         return [
             Zoomit.apiPath,
-            "v1/content/",
-            '?',
-            ARG_CALLBACK,
-            '=',
+            'v1/content/',
+            '?callback=',
             encodeURIComponent(callbackName),
-            '&',
-            ARG_URL,
-            '=',
+            '&url=',
             encodeURIComponent(url)
         ].join('');
-    }
-    
-    function isId(str) {
-        return ID_REGEX.test(str);
     }
     
     // PUBLIC METHODS
     
     /**
-     * Asynchronously fetches the info for the Zoom.it content with the given
-     * Zoom.it ID or source URL. The given callback function is called with an
-     * API response object <http://zoom.it/pages/api/reference/v1/response>.
+     * Asynchronously fetches Zoom.it content info from the given ID or URL
+     * and calls one of the given callback functions as appropriate.
+     * 
+     * Options:
+     * - id: either this or url required
+     * - url: either this or id required
+     * - error: optional callback(error) for bad request
+     * - ready: required callback(content) for content ready
+     * - failed: optional callback(content) for content failed
+     * - processing: optional callback(content) for content processing
+     *
+     * All callbacks also receive the original opts as a second parameter and
+     * the entire response object as a third parameter.
      */
-    Zoomit.getContentInfo = function (idOrUrl, callback) {
-        var apiUrlFunc = isId(idOrUrl) ? makeApiUrlById : makeApiUrlByUrl;
-        var script = makeScriptRequest(apiUrlFunc(idOrUrl, makeGlobalWrapper(
-            function (resp) {
-                script.parentNode.removeChild(script);
-                callback(resp);
+    Zoomit.getContentInfo = function (opts) {
+        
+        var jsonpScript;    // will be the <script> element used for JSONP
+        var callbackName = makeGlobalWrapper(function (resp) {
+            
+            // "garbage collect" the JSONP request from the DOM
+            jsonpScript.parentNode.removeChild(script);
+            
+            function callback(func, arg) {
+                if (func) {
+                    func(arg, opts, resp)
+                }
             }
-        )));
+            
+            var error = resp.error;
+            if (error) {
+                callback(opts.error, error);
+                return;
+            }
+            
+            var content = resp.content;
+            if (content.ready) {
+                callback(opts.ready, content);
+            } else if (content.failed) {
+                callback(opts.failed, content);
+            } else {
+                callback(opts.processing, content);
+            }
+            
+        });
+        
+        var idOrUrl = opts.id || opts.url;
+        var reqUrlFunc = opts.id ? makeApiUrlById : makeApiUrlByUrl;
+        var requestUrl = reqUrlFunc(idOrUrl, callbackName);
+        
+        jsonpScript = makeScriptRequest(requestUrl);
+        
     };
 
 }(window, document));
