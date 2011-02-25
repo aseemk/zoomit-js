@@ -56,25 +56,61 @@
     
     // API HELPERS
     
-    function makeApiUrlById(id, callbackName) {
+    function makeApiUrlById(type, id, callbackName) {
         return [
             Zoomit.apiPath,
-            'v1/content/',
+            'v1/',
+            type,
+            '/',
             id,
             '?callback=',
             encodeURIComponent(callbackName)
         ].join('');
     }
     
-    function makeApiUrlByUrl(url, callbackName) {
+    function makeApiUrlByUrl(type, url, callbackName) {
         return [
             Zoomit.apiPath,
-            'v1/content/',
+            'v1/',
+            type,
+            '/',
             '?callback=',
             encodeURIComponent(callbackName),
             '&url=',
             encodeURIComponent(url)
         ].join('');
+    }
+    
+    function makeApiRequest(type, id, url, callbacks) {
+
+        var jsonpScript;    // will be the <script> element used for JSONP
+        var callbackName = makeGlobalWrapper(function (resp) {
+
+            // "garbage collect" the JSONP request from the DOM
+            jsonpScript.parentNode.removeChild(jsonpScript);
+            
+            var status = resp.status;
+            var statusClass = Math.floor(status / 100);     // e.g. 503 -> 5
+            
+            var callback = callbacks[status] || callbacks[statusClass + "xx"];
+            
+            // special case for convenience -- "2xx/3xx" support:
+            if (!callback && (statusClass === 2 || statusClass === 3)) {
+                callback = callbacks["2xx/3xx"];
+            }
+            
+            if (callback) {
+                callback(resp);
+            }
+
+        });
+
+        var idOrUrl = id || url;
+        var reqUrlFunc = id ? makeApiUrlById : makeApiUrlByUrl;
+        var requestUrl = reqUrlFunc(type, idOrUrl, callbackName);
+
+        jsonpScript = makeScriptRequest(requestUrl);
+        
     }
     
     // PUBLIC METHODS
@@ -86,50 +122,111 @@
      * Options:
      * - id: either this or url required
      * - url: either this or id required
-     * - error: optional callback(error) for bad request
+     * - down: optional callback(message) for API down
+     * - error: optional callback(message) for bad request
      * - ready: required callback(content) for content ready
      * - failed: optional callback(content) for content failed
-     * - processing: optional callback(content) for content processing
+     * - progress: optional callback(content) for content in progress
      *
      * All callbacks also receive the original opts as a second parameter and
      * the entire response object as a third parameter.
      */
     Zoomit.getContentInfo = function (opts) {
         
-        var jsonpScript;    // will be the <script> element used for JSONP
-        var callbackName = makeGlobalWrapper(function (resp) {
+        function callback(resp, func, arg) {
+            if (func) {
+                func(arg, opts, resp);
+            }
+        }
+        
+        makeApiRequest("content", opts.id, opts.url, {
             
-            // "garbage collect" the JSONP request from the DOM
-            jsonpScript.parentNode.removeChild(jsonpScript);
-            
-            function callback(func, arg) {
-                if (func) {
-                    func(arg, opts, resp)
+            // successful req returns 200 if by ID but 301 if by URL
+            "2xx/3xx": function (resp) {
+                var content = resp.content;
+                if (content.ready) {
+                    callback(resp, opts.ready, content);
+                } else if (content.failed) {
+                    callback(resp, opts.failed, content);
+                } else {
+                    callback(resp, opts.progress, content);
                 }
-            }
+            },
             
-            var error = resp.error;
-            if (error) {
-                callback(opts.error, error);
-                return;
-            }
+            // e.g. 400 for malformed URL, 404 for unrecognized ID
+            "4xx": function (resp) {
+                callback(resp, opts.error, resp.error);
+            },
             
-            var content = resp.content;
-            if (content.ready) {
-                callback(opts.ready, content);
-            } else if (content.failed) {
-                callback(opts.failed, content);
-            } else {
-                callback(opts.processing, content);
+            // e.g. 500 for internal server error, 503 for API down
+            "5xx": function (resp) {
+                callback(resp, opts.down, resp.error);
             }
             
         });
         
-        var idOrUrl = opts.id || opts.url;
-        var reqUrlFunc = opts.id ? makeApiUrlById : makeApiUrlByUrl;
-        var requestUrl = reqUrlFunc(idOrUrl, callbackName);
+    };
+
+    /**
+     * Asynchronously fetches Zoom.it DZI info from the given ID or URL
+     * and calls one of the given callback functions as appropriate.
+     * 
+     * Options:
+     * - id: either this or url required
+     * - url: either this or id required
+     * - down: optional callback(message) for API down
+     * - error: optional callback(message) for bad request
+     * - ready: required callback(dzi) for DZI ready
+     * - failed: optional callback() for DZI failed
+     * - progress: optional callback() for DZI in progress
+     *
+     * All callbacks also receive the original opts and the entire response
+     * object as two additional parameters.
+     *
+     * Note that certain bad requests are not detectable as such and may
+     * appear to be failed DZIs instead. For example, it isn't possible to
+     * distinguish between an unrecognized ID and a failed DZI.
+     */
+    Zoomit.getDziInfo = function (opts) {
         
-        jsonpScript = makeScriptRequest(requestUrl);
+        function callback(resp, func, arg) {
+            if (func) {
+                if (arg) {
+                    func(arg, opts, resp);
+                } else {
+                    func(opts, resp);
+                }
+            }
+        }
+        
+        makeApiRequest("dzi", opts.id, opts.url, {
+            
+            // DZI ready always returns 301 currently, but future-proofing...
+            "2xx/3xx": function (resp) {
+                callback(resp, opts.ready, resp.dzi);
+            },
+            
+            // DZI isn't ready; retryAfter determines in progress or failed.
+            // note how we fail to catch 404 for unrecognized ID!
+            "404": function (resp) {
+                if (resp.retryAfter) {
+                    callback(resp, opts.progress);
+                } else {
+                    callback(resp, opts.failed);
+                }
+            },
+            
+            // e.g. 400 for malformed URL
+            "4xx": function (resp) {
+                callback(resp, opts.error, resp.error);
+            },
+            
+            // e.g. 500 for internal server error, 503 for API down
+            "5xx": function (resp) {
+                callback(resp, opts.down, resp.error);
+            }
+            
+        });
         
     };
 

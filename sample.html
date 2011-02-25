@@ -25,10 +25,14 @@
             width: 4em;
         }
         #url-container {
-            float: right;
+            float: left;
+            margin-left: 2em;
         }
         #url-input {
-            width: 45em;
+            width: 30em;
+        }
+        #type-container {
+            float: right;
         }
         #result-container {
             display: block;
@@ -56,6 +60,13 @@
             <input class="text" id="url-input" value="" />
             <input class="button" id="url-submit" type="submit" value="Query" />
         </label>
+        <label id="type-container">
+            <span>Type:</span>
+            <select id="type-select">
+                <option value="content">Content</option>
+                <option value="dzi">DZI</option>
+            </select>
+        </label>
         <label id="result-container">
             <span>Result:</span>
             <textarea id="result-output"></textarea>
@@ -65,6 +76,7 @@
     <script>
         var idInput = document.getElementById("id-input"),
             urlInput = document.getElementById("url-input"),
+            typeSelect = document.getElementById("type-select"),
             output = document.getElementById("result-output");
         
         function escapeHtml(str) {
@@ -81,10 +93,16 @@
             output.innerHTML += escapeHtml(msg || "") + "\n";
         }
         
-        function onRequestError(error, opts, resp) {
+        function onApiDown(message, opts, resp) {
+            writeOutput("The request failed because the API is down!");
+            writeOutput();
+            writeOutput(message);
+        }
+        
+        function onRequestError(message, opts, resp) {
             writeOutput("There was an error making the request!");
             writeOutput();
-            writeOutput(error);
+            writeOutput(message);
         }
         
         function writeContent(content) {
@@ -121,42 +139,67 @@
             writeContent(content);
         }
         
-        function onContentProcessing(content, opts, resp) {
-            writeOutput("The content is processing...");
+        function onContentProgress(content, opts, resp) {
+            writeOutput("The content is in progress...");
             writeContent(content);
         }
         
+        function onDziReady(dzi, opts, resp) {
+            writeOutput("The DZI is ready!");
+            writeDzi(dzi);
+        }
+        
+        function onDziFailed(opts, resp) {
+            writeOutput("The DZI failed.");
+        }
+        
+        function onDziProgress(opts, resp) {
+            writeOutput("The DZI is in progress...");
+        }
+        
         function makeRequest(id, url) {
+            
             // only one of id/url should be specified
-            Zoomit.getContentInfo({
-                id: id,
-                url: url,
-                error: onRequestError,
-                ready: onContentReady,
-                failed: onContentFailed,
-                processing: onContentProcessing
-            });
+            var input = id ? ("ID = " + id) : ("URL = " + url);
+            
+            clearOutput();
+            
+            switch (typeSelect.options[typeSelect.selectedIndex].value) {
+                
+                case "content":
+                    writeOutput("Retrieving content info... (" + input + ")");
+                    return Zoomit.getContentInfo({
+                        id: id,
+                        url: url,
+                        down: onApiDown,
+                        error: onRequestError,
+                        ready: onContentReady,
+                        failed: onContentFailed,
+                        progress: onContentProgress
+                    });
+                
+                case "dzi":
+                    writeOutput("Retrieving DZI info... (" + input + ")");
+                    return Zoomit.getDziInfo({
+                        id: id,
+                        url: url,
+                        down: onApiDown,
+                        error: onRequestError,
+                        ready: onDziReady,
+                        failed: onDziFailed,
+                        progress: onDziProgress
+                    });
+                
+            }
         }
         
         document.getElementById("id-submit").onclick = function () {
-            var id = idInput.value;
-            
-            clearOutput();
-            writeOutput("Retrieving content info for ID " + id + " ...");
-            
-            makeRequest(id, null);
-            
+            makeRequest(idInput.value, null);
             return false;
         };
 
         document.getElementById("url-submit").onclick = function () {
-            var url = urlInput.value;
-            
-            clearOutput();
-            writeOutput("Retrieving content info for " + url + " ...");
-            
-            makeRequest(null, url);
-
+            makeRequest(null, urlInput.value);
             return false;
         };
 
