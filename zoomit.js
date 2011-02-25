@@ -100,7 +100,7 @@
         var callbackName = makeGlobalWrapper(function (resp) {
             
             // "garbage collect" the JSONP request from the DOM
-            jsonpScript.parentNode.removeChild(script);
+            jsonpScript.parentNode.removeChild(jsonpScript);
             
             function callback(func, arg) {
                 if (func) {
