@@ -3,14 +3,6 @@
 //
 // Copyright (c) 2011 Aseem Kishore <https://github.com/aseemk>
 // MIT License (http://www.opensource.org/licenses/mit-license.php)
-//
-// Features:
-// - doesn't require jQuery or any other JS library
-//
-// TODO:
-// - add convenience wrappers for thumbnail URLs (zoomit://thumbnail/?url=)
-// - support batch API: combine multiple requests into one (POST via XHR/XDR)
-// - differentiate client vs. server errors? (e.g. bad req vs. site down)
 
 (function (window, document) {
     
@@ -78,6 +70,32 @@
             '&url=',
             encodeURIComponent(url)
         ].join('');
+    }
+    
+    function makeThumbnailUrl(url) {
+        return url && "zoomit://thumbnail/?url=" + encodeURIComponent(url);
+    }
+    
+    function makeThumbnailObject(dzi) {
+        // assuming that thumbnails are always 1024x768 with a tile size of
+        // 1024px, a tile overlap of 0 and a tile format of "png", as per:
+        // http://getsatisfaction.com/livelabs/topics/final_updates_to_seadragon_ajax_and_zoom_it
+        
+        // TEMP also assuming that DZI URLs always end in ".dzi". this isn't
+        // publicly documented or guaranteed, but it's a safe assumption.
+        
+        console.log(dzi);
+        
+        var base = dzi.url.replace(".dzi", "_files/");
+        var thumb = {};
+        
+        for (var level = 0; level <= 10; level++) {
+            // TEMP TODO what should the thumbnail object look like??
+            // for now, using keys like "1024", "512", "256" and so on.
+            thumb[Math.pow(2, level)] = base + level + "/0_0.png";
+        }
+        
+        return thumb;
     }
     
     function makeApiRequest(type, id, url, callbacks) {
@@ -229,4 +247,66 @@
         
     };
 
+    /**
+     * Asynchronously fetches Zoom.it thumbnail info from the given ID or URL
+     * and calls one of the given callback functions as appropriate.
+     * 
+     * Options:
+     * - id: either this or url required
+     * - url: either this or id required
+     * - down: optional callback(message) for API down
+     * - error: optional callback(message) for bad request
+     * - ready: required callback(thumbnail) for thumbnail ready
+     * - failed: optional callback() for thumbnail failed
+     * - progress: optional callback() for thumbnail in progress
+     *
+     * All callbacks also receive the original opts and the entire response
+     * object as two additional parameters.
+     *
+     * Note that certain bad requests are not detectable as such and may
+     * appear to be failed thumbnails instead. For example, it isn't possible
+     * to distinguish between an unrecognized ID and a failed thumbnail.
+     */
+    Zoomit.getThumbnail = function (opts) {
+    
+        function callback(resp, func, arg) {
+            if (func) {
+                if (arg) {
+                    func(arg, opts, resp);
+                } else {
+                    func(opts, resp);
+                }
+            }
+        }
+    
+        return Zoomit.getDzi({
+            
+            id: opts.id,
+            
+            url: makeThumbnailUrl(opts.url),
+            
+            down: function (message, opts2, resp) {
+                callback(resp, opts.down, message);
+            },
+            
+            error: function (message, opts2, resp) {
+                callback(resp, opts.error, message);
+            },
+            
+            ready: function (dzi, opts2, resp) {
+                callback(resp, opts.ready, makeThumbnailObject(dzi));
+            },
+            
+            failed: function (opts2, resp) {
+                callback(resp, opts.failed);
+            },
+            
+            progress: function (opts2, resp) {
+                callback(resp, opts.progress);
+            }
+            
+        });
+        
+    };
+    
 }(window, document));

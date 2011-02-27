@@ -65,6 +65,7 @@
             <select id="type-select">
                 <option value="content">Content</option>
                 <option value="dzi">DZI</option>
+                <option value="thumb">Thumbnail</option>
             </select>
         </label>
         <label id="result-container">
@@ -128,6 +129,14 @@
             writeOutput("DZI Format = " + dzi.tileFormat);
         }
         
+        function writeThumbnail(thumb) {
+            writeOutput();
+            writeOutput("1024 = " + thumb["1024"]);
+            writeOutput("512 = " + thumb["512"]);
+            writeOutput("256 = " + thumb["256"]);
+            writeOutput("128 = " + thumb["128"]);
+        }
+        
         function onContentReady(content, opts, resp) {
             writeOutput("The content is ready!");
             writeContent(content);
@@ -155,6 +164,19 @@
         
         function onDziProgress(opts, resp) {
             writeOutput("The DZI is in progress...");
+        }
+        
+        function onThumbnailReady(thumb, opts, resp) {
+            writeOutput("The thumbnail is ready!");
+            writeThumbnail(thumb);
+        }
+        
+        function onThumbnailFailed(opts, resp) {
+            writeOutput("The thumbnail failed.");
+        }
+        
+        function onThumbnailProgress(opts, resp) {
+            writeOutput("The thumbnail is in progress...");
         }
         
         function makeRequest(id, url) {
@@ -188,6 +210,18 @@
                         ready: onDziReady,
                         failed: onDziFailed,
                         progress: onDziProgress
+                    });
+                
+                case "thumb":
+                    writeOutput("Retrieving thumbnail... (" + input + ")");
+                    return Zoomit.getThumbnail({
+                        id: id,
+                        url: url,
+                        down: onApiDown,
+                        error: onRequestError,
+                        ready: onThumbnailReady,
+                        failed: onThumbnailFailed,
+                        progress: onThumbnailProgress
                     });
                 
             }
