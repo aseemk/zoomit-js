@@ -8,7 +8,6 @@
 // - doesn't require jQuery or any other JS library
 //
 // TODO:
-// - support streamlined DZI endpoint (/v1/dzi)
 // - add convenience wrappers for thumbnail URLs (zoomit://thumbnail/?url=)
 // - support batch API: combine multiple requests into one (POST via XHR/XDR)
 // - differentiate client vs. server errors? (e.g. bad req vs. site down)
@@ -131,7 +130,7 @@
      * All callbacks also receive the original opts as a second parameter and
      * the entire response object as a third parameter.
      */
-    Zoomit.getContentInfo = function (opts) {
+    Zoomit.getContent = function (opts) {
         
         function callback(resp, func, arg) {
             if (func) {
@@ -187,7 +186,7 @@
      * appear to be failed DZIs instead. For example, it isn't possible to
      * distinguish between an unrecognized ID and a failed DZI.
      */
-    Zoomit.getDziInfo = function (opts) {
+    Zoomit.getDzi = function (opts) {
         
         function callback(resp, func, arg) {
             if (func) {

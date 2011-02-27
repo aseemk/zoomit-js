@@ -168,7 +168,7 @@
                 
                 case "content":
                     writeOutput("Retrieving content info... (" + input + ")");
-                    return Zoomit.getContentInfo({
+                    return Zoomit.getContent({
                         id: id,
                         url: url,
                         down: onApiDown,
@@ -180,7 +180,7 @@
                 
                 case "dzi":
                     writeOutput("Retrieving DZI info... (" + input + ")");
-                    return Zoomit.getDziInfo({
+                    return Zoomit.getDzi({
                         id: id,
                         url: url,
                         down: onApiDown,
